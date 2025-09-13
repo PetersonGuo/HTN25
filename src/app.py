@@ -1,11 +1,21 @@
 import fastapi
 from polygon import RESTClient
 from dotenv import load_dotenv
+from starlette.middleware.sessions import SessionMiddleware
 import os
 
 load_dotenv()  # Load environment variables from .env file
 
+SESSION_SECRET = os.getenv("SESSION_SECRET", "dev-change-me")  # set a strong random value
+
 app = fastapi.FastAPI()
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("SESSION_SECRET"),  # set a strong random value
+    same_site="lax",
+    https_only=False,  # set True behind TLS
+)
+
 client = RESTClient(os.getenv("POLYGON_API"))
 
 @app.get("/v1/validate/{symbol}")
@@ -37,7 +47,7 @@ def status():
 @app.get("/v1/news/{ticker}")
 def news(ticker: str):
     try:
-        news_data = client.list_ticker_news(ticker=ticker, limit=10, sort="asc", sort="published_utc")
+        news_data = client.list_ticker_news(ticker=ticker, limit=10, order="asc", sort="published_utc")
         return {"valid": True, "data": news_data}
     except Exception:
         return {"valid": False}
