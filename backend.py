@@ -69,6 +69,7 @@ def orderbook(ticker: str):
 
 @app.post("/v1/trades")
 def trades(ticker: str, limit: int = 10):
+    return {"valid": True, "data": f"Trades for {ticker} with limit {limit} not implemented yet."} # Hard code limit because no access
     try:
         trades_data = client.list_trades(ticker, limit=limit, sort="desc")
         return {"valid": True, "data": trades_data}
