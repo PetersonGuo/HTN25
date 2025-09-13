@@ -27,38 +27,18 @@ def authorize():
     token = oauth.oidc.authorize_access_token()
     user = token['userinfo']
     session['user'] = user
-    return redirect(url_for('index'))
+    return redirect("/")
 
 @api.route("/login")
 def login():
     # Must be in your Cognito App client callback list
-    return oauth.oidc.authorize_redirect('https://d84l1y8p4kdic.cloudfront.net')
+    redirect_uri = url_for("/user.authorize", _external=True)
+    return oauth.oidc.authorize_redirect(redirect_uri)
 
 @api.route('/logout')
 def logout():
     session.pop('user', None)
-    return redirect(url_for('index'))
-
-@api.get("/auth/callback")
-async def auth_callback(request):
-    try:
-        # Exchanges code for tokens and validates ID token with JWKS
-        token = await oauth.oidc.authorize_access_token(request)
-    except OAuthError as e:
-        raise HTTPException(status_code=400, detail=f"OAuth error: {e.error}")
-
-    # Prefer OIDC userinfo if available. Fallback to ID token claims.
-    userinfo = token.get("userinfo")
-    if not userinfo:
-        userinfo = await oauth.oidc.parse_id_token(request, token)
-
-    # Store minimal session info
-    request.session["user"] = {
-        "sub": userinfo.get("sub"),
-        "email": userinfo.get("email"),
-    }
-    request.session["token"] = token  # access_token, id_token, etc.
-    return redirect(url="/")
+    return redirect('/')
 
 @api.route("/signup")
 def signup():

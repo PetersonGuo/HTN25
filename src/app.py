@@ -36,6 +36,10 @@ spec = APISpec(
 
 client = RESTClient(os.getenv("POLYGON_API"))
 
+@app.get("/")
+def home():
+    return "Welcome to the Stock Trading API! Visit /apidocs for API documentation."
+
 @app.get("/v1/validate/{symbol}")
 def validate_symbol(symbol: str):
     try:
@@ -150,3 +154,7 @@ template = spec.to_flasgger(
 )
 
 swag = Swagger(app, template=template)
+
+
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", port=8000, debug=True)
