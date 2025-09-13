@@ -1,11 +1,12 @@
 import fastapi
 from polygon import RESTClient
 from dotenv import load_dotenv
+import os
 
 load_dotenv()  # Load environment variables from .env file
 
 app = fastapi.FastAPI()
-client = RESTClient(POLYGON_API)
+client = RESTClient(os.getenv("POLYGON_API"))
 
 @app.get("/v1/validate/{symbol}")
 def validate_symbol(symbol: str):
