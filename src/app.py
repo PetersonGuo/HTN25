@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import os
 from auth import api
 from flasgger import APISpec, Schema, Swagger, fields
-from auth import index, login, logout, authorize, auth_callback, signup
+from auth import index, login, logout, authorize, signup
 from apispec.ext.marshmallow import MarshmallowPlugin
 from apispec_webframeworks.flask import FlaskPlugin
 import oauth
