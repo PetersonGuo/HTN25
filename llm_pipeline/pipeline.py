@@ -1,32 +1,42 @@
-from typing import Any, Dict, Optional, Tuple, List
+from typing import Any, Dict, Optional, List
 import re
-from .config.models import PipelineConfig, AgentDecision
-from .registry.template_registry import TemplateRegistry
-from .executors.base import LLMExecutor
-from .executors.cerebras import CerebrasExecutor
-from .agents.base import ExternalAgent
-from .agents.default_agent import DefaultAgent
 import json
 from json import JSONDecodeError
 from jsonschema import validate as jsonschema_validate
 from jsonschema.exceptions import ValidationError as JSONSchemaValidationError
+from .config.models import PipelineConfig, AgentDecision, ExecutorType
+from .registry.template_registry import TemplateRegistry
+from .executors.cerebras import CerebrasExecutor
+from .executors.openai_executor import OpenAIExecutor
 
 class Pipeline:
-    def __init__(self, registry: TemplateRegistry, executor: Optional[LLMExecutor] = None, agent: Optional[ExternalAgent] = None):
+    def __init__(self, registry: TemplateRegistry, agent):
         self.registry = registry
-        self.executor = executor or CerebrasExecutor()
-        self.agent = agent or DefaultAgent()
+        self.agent = agent
+    
+    def _get_executor(self, executor_type: ExecutorType, config: PipelineConfig):
+        """Create an executor of the specified type."""
+        if executor_type == ExecutorType.CEREBRAS:
+            return CerebrasExecutor(timeout=config.timeout_seconds, max_output_tokens=config.max_output_tokens)
+        elif executor_type == ExecutorType.OPENAI:
+            return OpenAIExecutor(timeout=config.timeout_seconds, max_output_tokens=config.max_output_tokens)
+        else:
+            raise ValueError(f"Unsupported executor type: {executor_type}")
 
     def run(self, input_data: Dict[str, Any], config: PipelineConfig) -> Dict[str, Any]:
         decision: AgentDecision = self.agent.decide(input_data, config)
         template = self.registry.get_template(decision.template_name)
         base_prompt = template.render(input_data)
-        # Allow executor override of limits via config
-        if hasattr(self.executor, 'timeout'):
-            setattr(self.executor, 'timeout', getattr(config, 'timeout_seconds', getattr(self.executor, 'timeout')))
-        if hasattr(self.executor, 'max_output_tokens'):
-            setattr(self.executor, 'max_output_tokens', getattr(config, 'max_output_tokens', getattr(self.executor, 'max_output_tokens')))
-        # Always JSON mode: build instructions and validate with retries when requested
+        
+        # Use executor type from agent decision
+        executor_type = decision.executor_type
+        
+        executor = self._get_executor(executor_type, config)
+        
+        # Get images from input_data
+        images = input_data.get('images')
+        
+        # JSON mode: build instructions and validate with retries
         validation_report: Dict[str, Any] = {}
         instructions_parts: List[str] = [
             "You are a JSON-producing assistant.",
@@ -41,10 +51,11 @@ class Pipeline:
         )
         instructions = "\n\n".join(instructions_parts)
 
-        attempts = max(1, getattr(config, 'json_retry_attempts', 1))
+        attempts = config.json_retry_attempts
         last_text_output: Optional[str] = None
         last_validation_errors: Optional[str] = None
         parsed_answer: Optional[Dict[str, Any]] = None
+        result: Dict[str, Any] = {}
         for attempt_index in range(attempts):
             attempt_header = f"Attempt {attempt_index + 1} of {attempts}."
             retry_note = (
@@ -52,7 +63,7 @@ class Pipeline:
                 if last_validation_errors else ""
             )
             prompt = f"{instructions}\n\n{attempt_header}\n{retry_note}\n\n{base_prompt}"
-            result = self.executor.generate(prompt=prompt, model=decision.model)
+            result = executor.generate(prompt=prompt, model=decision.model, images=images)
             last_text_output = result["output"]
             # Try to parse JSON
             try:

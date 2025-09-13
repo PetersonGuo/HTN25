@@ -1,0 +1,8 @@
+{
+  "context": "You are analyzing images to provide insights about their content.",
+  "question": "What do you see in these images?",
+  "template_name": "v1",
+  "images": [
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+  ]
+}
