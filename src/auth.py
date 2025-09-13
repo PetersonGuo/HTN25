@@ -1,5 +1,6 @@
 from http.client import HTTPException
 import os
+from urllib.parse import urlencode, quote
 from flask import Blueprint, session, url_for, redirect
 from authlib.integrations.starlette_client import OAuthError
 from oauth import oauth
@@ -11,8 +12,12 @@ CLIENT_SECRET = os.getenv("AWS_CLIENT_SECRET", "<client secret>")  # set in env
 ISSUER = f"https://cognito-idp.{REGION}.amazonaws.com/{USER_POOL_ID}"
 SERVER_METADATA_URL = f"{ISSUER}/.well-known/openid-configuration"
 SCOPES = "openid email phone"
+DOMAIN_PREFIX = "us-east-2y3j8ibnue"
 
 api = Blueprint("/user", __name__, url_prefix="/user")
+
+def hosted_ui_base() -> str:
+    return f"https://{DOMAIN_PREFIX}.auth.{REGION}.amazoncognito.com"
 
 @api.route('/')
 def index():
@@ -42,7 +47,17 @@ def logout():
 
 @api.route("/signup")
 def signup():
-    return oauth.oidc.authorize_redirect('https://d84l1y8p4kdic.cloudfront.net')
+    redirect_uri = url_for("/user.login", _external=True)
+    q = urlencode(
+        {
+            "client_id": CLIENT_ID,
+            "response_type": "code",
+            "scope": SCOPES,
+            "redirect_uri": redirect_uri,
+        },
+        quote_via=quote,
+    )
+    return redirect(f"{hosted_ui_base()}/signup?{q}")
 
 @api.get("/me")
 def get_current_user():
