@@ -6,7 +6,6 @@ readme = "README.md"
 authors = [
     { name = "Peterson Guo", email = "petersonguo@gmail.com" },
 ]
-license = { file = "LICENSE" }
 requires-python = ">=3.9"
 dependencies = [
     "fastapi",
