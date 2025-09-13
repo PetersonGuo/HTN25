@@ -8,6 +8,7 @@ from auth import index, login, logout, authorize, auth_callback, signup
 from apispec.ext.marshmallow import MarshmallowPlugin
 from apispec_webframeworks.flask import FlaskPlugin
 import oauth
+from datetime import datetime, timedelta
 
 load_dotenv()  # Load environment variables from .env file
 
@@ -63,9 +64,15 @@ def status():
         return {"valid": False}
 
 @app.get("/v1/news/{ticker}")
-def news(ticker: str):
+def news(ticker: str, limit: int = 10):
     try:
-        news_data = client.list_ticker_news(ticker=ticker, limit=10, order="asc", sort="published_utc")
+        news_generator = client.list_ticker_news(ticker=ticker, limit=str(limit), order="asc", sort="published_utc")
+        news_data = []
+        for news_item in news_generator:
+            if limit <= 0:
+                break
+            news_data.append(news_item)
+            limit -= 1
         return {"valid": True, "data": news_data}
     except Exception:
         return {"valid": False}
@@ -73,11 +80,33 @@ def news(ticker: str):
 
 @app.get("/v1/price/{ticker}")
 def price(ticker: str):
-    try:
-        price_data = client.get_last_trade(ticker)
-        return {"valid": True, "data": price_data}
-    except Exception:
-        return {"valid": False}
+    try:        
+        # Try to get recent data, extending the search window if needed
+        for days_back in [1, 7, 30]:  # Try 1 day, then 7 days, then 30 days
+            end_date = datetime.now().strftime("%Y-%m-%d")
+            start_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+            
+            try:
+                # Use daily aggregates to get the most recent closing prices
+                price_data = client.get_aggs(ticker, 1, "day", start_date, end_date)
+                
+                # If we got data, return the most recent available
+                if hasattr(price_data, 'results') and price_data.results:
+                    return {"valid": True, "data": price_data}
+                elif price_data and len(price_data) > 0:
+                    return {"valid": True, "data": price_data}
+            except:
+                continue  # Try the next time window
+        
+        # If no aggregate data found, fallback to last trade as ultimate backup
+        try:
+            price_data = client.get_last_trade(ticker)
+            return {"valid": True, "data": price_data}
+        except:
+            return {"valid": False, "error": "No recent price data available"}
+            
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
 
 @app.post("/v1/candles")
 def candles(ticker: str, timeframe: str = "1Day", start: str = "2023-01-01", end: str = "2023-12-31"):
