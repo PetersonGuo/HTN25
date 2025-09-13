@@ -1,13 +1,8 @@
-import database
+from http.client import HTTPException
 import os
-import time
-import requests
-import jwt
-from jwt import PyJWKClient
-from fastapi import Request, Depends, HTTPException, APIRouter
-from fastapi.responses import RedirectResponse, HTMLResponse
-from fastapi.security import HTTPBearer
-from authlib.integrations.starlette_client import OAuth, OAuthError
+from flask import Blueprint, session, url_for, redirect
+from authlib.integrations.starlette_client import OAuthError
+from oauth import oauth
 
 REGION = "us-east-2"
 USER_POOL_ID = "us-east-2_Y3j8IBnuE"
@@ -17,47 +12,35 @@ ISSUER = f"https://cognito-idp.{REGION}.amazonaws.com/{USER_POOL_ID}"
 SERVER_METADATA_URL = f"{ISSUER}/.well-known/openid-configuration"
 SCOPES = "openid email phone"
 
-api = APIRouter(prefix="/user", tags=["auth"])
+api = Blueprint("/user", __name__, url_prefix="/user")
 
-oauth = OAuth()
-oauth.register(
-    name="oidc",
-    client_id=CLIENT_ID,
-    client_secret=CLIENT_SECRET,
-    server_metadata_url=SERVER_METADATA_URL,
-    client_kwargs={"scope": SCOPES},
-)
-
-security = HTTPBearer(auto_error=False)
-
-def require_user(request: Request):
-    if "user" not in request.session:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    return request.session["user"]
-
-# ---------------------------
-# Routes
-# ---------------------------
-@api.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    user = request.session.get("user")
+@api.route('/')
+def index():
+    user = session.get('user')
     if user:
-        email = user.get("email") or "(no email claim)"
-        return HTMLResponse(
-            f"<h3>Signed in</h3><p>{email}</p>"
-            f'<p><a href="/protected">Protected route</a></p>'
-            f'<p><a href="/logout">Logout</a></p>'
-        )
-    return HTMLResponse('<a href="/login">Login with Cognito</a>')
+        return  f'Hello, {user["email"]}. <a href="/logout">Logout</a>'
+    else:
+        return f'Welcome! Please <a href="/login">Login</a>.'
 
-@api.get("/login")
-async def login(request: Request):
+@api.route('/authorize')
+def authorize():
+    token = oauth.oidc.authorize_access_token()
+    user = token['userinfo']
+    session['user'] = user
+    return redirect(url_for('index'))
+
+@api.route("/login")
+def login():
     # Must be in your Cognito App client callback list
-    redirect_uri = request.url_for("auth_callback")
-    return await oauth.oidc.authorize_redirect(request, redirect_uri)
+    return oauth.oidc.authorize_redirect('https://d84l1y8p4kdic.cloudfront.net')
+
+@api.route('/logout')
+def logout():
+    session.pop('user', None)
+    return redirect(url_for('index'))
 
 @api.get("/auth/callback")
-async def auth_callback(request: Request):
+async def auth_callback(request):
     try:
         # Exchanges code for tokens and validates ID token with JWKS
         token = await oauth.oidc.authorize_access_token(request)
@@ -75,24 +58,11 @@ async def auth_callback(request: Request):
         "email": userinfo.get("email"),
     }
     request.session["token"] = token  # access_token, id_token, etc.
-    return RedirectResponse(url="/")
+    return redirect(url="/")
 
-@api.get("/protected")
-async def protected(_user=Depends(require_user)):
-    # You have a valid session here
-    return {"ok": True, "user": _user}
-
-@api.get("/logout")
-async def logout(request: Request):
-    request.session.clear()
-    # Optional: also hit Cognito logout endpoint if you use Hosted UI domain
-    # Redirect back to home after local logout
-    return RedirectResponse(url="/")
-
-@api.post("/create")
-def create_user(user: dict):
-    response = table.put_item(Item=user)
-    return {"valid": True, "data": response}
+@api.route("/signup")
+def signup():
+    return oauth.oidc.authorize_redirect('https://d84l1y8p4kdic.cloudfront.net')
 
 @api.get("/me")
 def get_current_user():

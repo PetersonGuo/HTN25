@@ -1,20 +1,38 @@
-import fastapi
+from flask import Flask
 from polygon import RESTClient
 from dotenv import load_dotenv
-from starlette.middleware.sessions import SessionMiddleware
 import os
+from auth import api
+from flasgger import APISpec, Schema, Swagger, fields
+from auth import index, login, logout, authorize, auth_callback, signup
+from apispec.ext.marshmallow import MarshmallowPlugin
+from apispec_webframeworks.flask import FlaskPlugin
+import oauth
 
 load_dotenv()  # Load environment variables from .env file
 
 SESSION_SECRET = os.getenv("SESSION_SECRET", "dev-change-me")  # set a strong random value
 
-app = fastapi.FastAPI()
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=os.getenv("SESSION_SECRET"),  # set a strong random value
-    same_site="lax",
-    https_only=False,  # set True behind TLS
+app = Flask(__name__)
+app.register_blueprint(api)
+app.config.update(
+    SECRET_KEY=SESSION_SECRET,
+    SESSION_COOKIE_SAMESITE="Lax",      # good default for OAuth code flow
+    SESSION_COOKIE_SECURE=False,        # True in HTTPS/prod
 )
+
+oauth.init_app(app)
+
+spec = APISpec(
+    title='Flasger Petstore',
+    version='1.0.10',
+    openapi_version='2.0',
+    plugins=[
+        FlaskPlugin(),
+        MarshmallowPlugin(),
+    ],
+)
+
 
 client = RESTClient(os.getenv("POLYGON_API"))
 
@@ -125,3 +143,10 @@ def alerts():
 @app.get("/v1/alerts")
 def get_alerts():
     return {"valid": True, "data": "Get alerts endpoint not implemented yet."}
+
+template = spec.to_flasgger(
+    app,
+    paths=[validate_symbol, symbols, status, news, price, candles, orderbook, trades, portfolio, portfolio_positions, orders, order_details, exec_sim, backtest, risk_beta, ai_summary, alerts, get_alerts, index, login, logout, authorize, auth_callback, signup],
+)
+
+swag = Swagger(app, template=template)

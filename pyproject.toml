@@ -13,9 +13,11 @@ dependencies = [
     "polygon-api-client",
     "python-dotenv",
     "boto3",
-    "uvicorn",
-    "authlib",
     "requests",
+    "flasgger",
+    "apispec",
+    "marshmallow",
+    "apispec_webframeworks"
 ]
 
 [project.optional-dependencies]
