@@ -179,7 +179,7 @@ def get_alerts():
 
 template = spec.to_flasgger(
     app,
-    paths=[validate_symbol, symbols, status, news, price, candles, orderbook, trades, portfolio, portfolio_positions, orders, order_details, exec_sim, backtest, risk_beta, ai_summary, alerts, get_alerts, index, login, logout, authorize, auth_callback, signup],
+    paths=[validate_symbol, symbols, status, news, price, candles, orderbook, trades, portfolio, portfolio_positions, orders, order_details, exec_sim, backtest, risk_beta, ai_summary, alerts, get_alerts, index, login, logout, authorize, signup],
 )
 
 swag = Swagger(app, template=template)
